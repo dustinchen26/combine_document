@@ -1,79 +1,136 @@
+<!-- 
+  Copyright © [2023] [Dustin_Chen]. All rights reserved.
+  Author: Dustin_Chen
+  Email:  Dustin_Chen@compal.com or chuhpsdustin@gmail.com
+-->
+
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文件合併工具</title>
+    <title>Merge Multiple Documents into One</title>
+    <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      line-height: 1.2;
+      font-size: 14px;
+      margin: 20px;	  
+    }
+
+        h1 {
+            text-align: center;
+        }
+        button {
+            font-size: 14px;		
+            padding: 3px 10px;
+            margin: 10px 0;
+        }
+        pre {
+            padding: 10px;
+            background: #f4f4f4;
+            border: 1px solid #ccc;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
 </head>
 <body>
-
-    <h2>多文件合併工具</h2>
-    <input type="file" id="fileInput" multiple>
-    <button onclick="mergeFiles()">合併文件</button>
-
-    <h3>合併結果:</h3>
+    <h2>Merge Multiple Documents into One</h2>
+	
+    <p style="margin: 0;">Author: Dustin_Chen, email: <a href="mailto:Dustin_Chen@compal.com" style="line-height: 1;">Dustin_Chen@compal.com</a> or <a href="mailto:chuhpsdustin@gmail.com" style="line-height: 1;">chuhpsdustin@gmail.com</a></p>
+	
+    <h3>● Please push the button below and select multiple documents to upload. It will combine the selected documents into a single document.</h3>
+    <button onclick="startFileMerge()">upload</button>
+    <h3>Merge result:</h3>
     <pre id="mergedOutput"></pre>
 
     <script>
-        // 儲存已讀取的文件內容
-        let fileContents = [];
+        function startFileMerge() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.multiple = true;
 
-        // 讀取選擇的文件
-        document.getElementById('fileInput').addEventListener('change', (event) => {
-            fileContents = [];
-            const files = event.target.files;
-            if (files.length > 0) {
-                for (let i = 0; i < files.length; i++) {
-                    let reader = new FileReader();
-                    reader.onload = function(e) {
-                        fileContents.push(e.target.result);
-                    };
-                    reader.readAsText(files[i]);
+            // 綁定文件選擇事件
+            input.addEventListener('change', async (event) => {
+                const files = Array.from(event.target.files);
+
+                if (files.length < 2) {
+                    alert("請選擇至少兩個文件！");
+                    return;
                 }
-            }
-        });
 
-        // 合併文件的函數
-        function mergeFiles() {
-            if (fileContents.length < 2) {
-                alert("請選擇至少兩個文件！");
-                return;
-            }
+                // 對文件名稱進行排序（自然排序）
+                files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
-            // 合併過程
-            let mergedContent = fileContents[0]; // 從第一個文件開始
+                // 讀取所有文件內容
+                const fileContents = await Promise.all(files.map(file => readFileAsText(file)));
 
-            // 循環遍歷後續的文件並去除重複內容
-            for (let i = 1; i < fileContents.length; i++) {
-                mergedContent = mergeTwoFiles(mergedContent, fileContents[i]);
-            }
+                // 逐步合併文件
+                let mergedContent = fileContents[0].split("\n");
+                for (let i = 1; i < fileContents.length; i++) {
+                    mergedContent = mergeTwoFiles(mergedContent, fileContents[i].split("\n"));
+                }
 
-            // 顯示合併結果
-            document.getElementById('mergedOutput').textContent = mergedContent;
+                // 將合併結果顯示在頁面
+                const result = mergedContent.join("\n");
+                document.getElementById('mergedOutput').textContent = result;
+
+                // 觸發文件下載
+                downloadMergedFile(result, "merged_result.txt");
+            });
+
+            // 模擬點擊文件選擇框
+            input.click();
         }
 
-        // 合併兩個文件的函數
-        function mergeTwoFiles(file1, file2) {
-            // 找出文件1的結尾和文件2的開頭的重複部分
-            let overlapIndex = findOverlap(file1, file2);
-            // 合併
-            return file1 + '\n' + file2.substring(overlapIndex);
+        // 讀取文件為純文字
+        function readFileAsText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = reject;
+                reader.readAsText(file);
+            });
         }
 
-        // 找出兩個文件的重複區域
-        function findOverlap(file1, file2) {
-            let overlapIndex = 0;
+        // 合併兩個文件內容
+        function mergeTwoFiles(file1Lines, file2Lines) {
+            const overlapIndex = findOverlap(file1Lines, file2Lines);
 
-            // 假設最大重複區域為文件1的長度 - 1
-            for (let i = 1; i <= file1.length; i++) {
-                // 從文件1的末尾開始，向前對比
-                if (file1.slice(-i) === file2.slice(0, i)) {
-                    overlapIndex = i;
+            if (overlapIndex === -1) {
+                return file1Lines.concat(file2Lines); // 無重疊，直接拼接
+            } else {
+                return file1Lines.concat(file2Lines.slice(overlapIndex)); // 去除重疊部分後拼接
+            }
+        }
+
+        // 尋找文件的重疊行
+        function findOverlap(file1Lines, file2Lines) {
+            const maxOverlap = Math.min(file1Lines.length, file2Lines.length);
+
+            for (let i = 1; i <= maxOverlap; i++) {
+                const file1Tail = file1Lines.slice(-i).join("\n").trim();
+                const file2Head = file2Lines.slice(0, i).join("\n").trim();
+
+                if (file1Tail === file2Head) {
+                    return i; // 返回重疊的行數
                 }
             }
-            return overlapIndex;
+
+            return -1; // 無重疊
+        }
+
+        // 觸發下載文件
+        function downloadMergedFile(content, filename) {
+            const blob = new Blob([content], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
     </script>
-
 </body>
 </html>
