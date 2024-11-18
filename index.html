@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件合併工具</title>
+</head>
+<body>
+
+    <h2>多文件合併工具</h2>
+    <input type="file" id="fileInput" multiple>
+    <button onclick="mergeFiles()">合併文件</button>
+
+    <h3>合併結果:</h3>
+    <pre id="mergedOutput"></pre>
+
+    <script>
+        // 儲存已讀取的文件內容
+        let fileContents = [];
+
+        // 讀取選擇的文件
+        document.getElementById('fileInput').addEventListener('change', (event) => {
+            fileContents = [];
+            const files = event.target.files;
+            if (files.length > 0) {
+                for (let i = 0; i < files.length; i++) {
+                    let reader = new FileReader();
+                    reader.onload = function(e) {
+                        fileContents.push(e.target.result);
+                    };
+                    reader.readAsText(files[i]);
+                }
+            }
+        });
+
+        // 合併文件的函數
+        function mergeFiles() {
+            if (fileContents.length < 2) {
+                alert("請選擇至少兩個文件！");
+                return;
+            }
+
+            // 合併過程
+            let mergedContent = fileContents[0]; // 從第一個文件開始
+
+            // 循環遍歷後續的文件並去除重複內容
+            for (let i = 1; i < fileContents.length; i++) {
+                mergedContent = mergeTwoFiles(mergedContent, fileContents[i]);
+            }
+
+            // 顯示合併結果
+            document.getElementById('mergedOutput').textContent = mergedContent;
+        }
+
+        // 合併兩個文件的函數
+        function mergeTwoFiles(file1, file2) {
+            // 找出文件1的結尾和文件2的開頭的重複部分
+            let overlapIndex = findOverlap(file1, file2);
+            // 合併
+            return file1 + '\n' + file2.substring(overlapIndex);
+        }
+
+        // 找出兩個文件的重複區域
+        function findOverlap(file1, file2) {
+            let overlapIndex = 0;
+
+            // 假設最大重複區域為文件1的長度 - 1
+            for (let i = 1; i <= file1.length; i++) {
+                // 從文件1的末尾開始，向前對比
+                if (file1.slice(-i) === file2.slice(0, i)) {
+                    overlapIndex = i;
+                }
+            }
+            return overlapIndex;
+        }
+    </script>
+
+</body>
+</html>
