@@ -1,9 +1,3 @@
-<!-- 
-  Copyright © [2023] [Dustin_Chen]. All rights reserved.
-  Author: Dustin_Chen
-  Email:  Dustin_Chen@compal.com or chuhpsdustin@gmail.com
--->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -15,113 +9,165 @@
       font-family: 'Roboto', sans-serif;
       line-height: 1.2;
       font-size: 14px;
-      margin: 20px;	  
+      margin: 20px;
     }
 
-        h1 {
-            text-align: center;
-        }
-        button {
-            font-size: 14px;		
-            padding: 3px 10px;
-            margin: 10px 0;
-        }
-        pre {
-            padding: 10px;
-            background: #f4f4f4;
-            border: 1px solid #ccc;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
+    h1 {
+        text-align: center;
+    }
+
+    button {
+        font-size: 14px;
+        padding: 3px 10px;
+        margin: 10px 0;
+    }
+
+    pre {
+        padding: 10px;
+        background: #f4f4f4;
+        border: 1px solid #ccc;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    #progressText {
+        font-size: 14px;
+        color: #333;
+        margin-left: 10px;
+    }
+
     </style>
 </head>
 <body>
     <h2>Merge Multiple Documents into One</h2>
-	
+    
     <p style="margin: 0;">Author: Dustin_Chen, email: <a href="mailto:Dustin_Chen@compal.com" style="line-height: 1;">Dustin_Chen@compal.com</a> or <a href="mailto:chuhpsdustin@gmail.com" style="line-height: 1;">chuhpsdustin@gmail.com</a></p>
-	
+    
     <h3>● Please push the button below and select multiple documents to upload. It will combine the selected documents into a single document.</h3>
-    <button onclick="startFileMerge()">upload</button>
+    <button onclick="startFileMerge()">Upload</button>
+    <span id="progressText">Progress: Waiting for files...</span>
     <h3>Merge result:</h3>
     <pre id="mergedOutput"></pre>
 
     <script>
-        function startFileMerge() {
+        async function startFileMerge() {
             const input = document.createElement('input');
             input.type = 'file';
             input.multiple = true;
 
-            // 綁定文件選擇事件
             input.addEventListener('change', async (event) => {
                 const files = Array.from(event.target.files);
-
                 if (files.length < 2) {
-                    alert("請選擇至少兩個文件！");
+                    alert("Please select at least two files!");
                     return;
                 }
 
-                // 對文件名稱進行排序（自然排序）
+                // 按字母順序對文件進行排序
                 files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
-                // 讀取所有文件內容
-                const fileContents = await Promise.all(files.map(file => readFileAsText(file)));
+                let mergedContent = [];
+                let processedFiles = 0;
+                let totalFiles = files.length;
+                let totalFileSize = files.reduce((acc, file) => acc + file.size, 0);
+                let processedSize = 0;
 
-                // 逐步合併文件
-                let mergedContent = fileContents[0].split("\n");
-                for (let i = 1; i < fileContents.length; i++) {
-                    mergedContent = mergeTwoFiles(mergedContent, fileContents[i].split("\n"));
+                // 更新進度文本的函數
+                function updateProgressText(text) {
+                    document.getElementById('progressText').textContent = `Progress: ${text}`;
                 }
 
-                // 將合併結果顯示在頁面
-                const result = mergedContent.join("\n");
-                document.getElementById('mergedOutput').textContent = result;
+                // 按塊處理文件
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const reader = new FileReader();
+                    let currentFileContent = [];
 
-                // 觸發文件下載
-                downloadMergedFile(result, "merged_result.txt");
+                    updateProgressText(`Processing file: ${file.name}...`);
+                    console.log(`Processing file: ${file.name}...`);
+
+                    let start = 0;
+                    const chunkSize = 1 * 1024 * 1024; // 每個塊大小為1MB（可以根據文件大小調整）
+
+                    // 分塊讀取文件
+                    const processFileChunk = () => {
+                        if (start < file.size) {
+                            const end = Math.min(start + chunkSize, file.size);
+                            const fileChunk = file.slice(start, end);
+
+                            reader.readAsText(fileChunk);
+
+                            reader.onload = () => {
+                                const chunkText = reader.result;
+                                currentFileContent = currentFileContent.concat(chunkText.split("\n"));
+
+                                // 更新已處理的大小和整體進度
+                                processedSize += fileChunk.size;
+                                const overallProgress = Math.round((processedSize / totalFileSize) * 100);
+                                updateProgressText(`Processing files... ${overallProgress}% completed (${processedFiles + 1}/${totalFiles})`);
+                                console.log(`Processing files... ${overallProgress}% completed (${processedFiles + 1}/${totalFiles})`);
+
+                                // 一旦這一塊處理完成，繼續處理下一塊
+                                start = end;
+                                processFileChunk();
+                            };
+
+                            reader.onerror = () => {
+                                console.error("Error reading file chunk.");
+                            };
+                        } else {
+                            // 當所有塊都處理完後，將當前文件與之前的文件合併
+                            if (currentFileContent.length > 0) {
+                                mergedContent = mergeTwoFiles(mergedContent, currentFileContent);
+                            }
+                            processedFiles++;
+
+                            // 檢查是否所有文件都處理完
+                            if (processedFiles < totalFiles) {
+                                console.log(`Finished processing file ${processedFiles}/${totalFiles}`);
+                                updateProgressText(`Processing files... ${Math.round((processedFiles / totalFiles) * 100)}% completed`);
+                            } else {
+                                // 所有文件已經合併，顯示結果並觸發下載
+                                const result = mergedContent.join("\n");
+                                document.getElementById('mergedOutput').textContent = result;
+                                updateProgressText(`Merging complete. Downloading the file...`);
+                                console.log("Merging complete. Downloading the file...");
+                                downloadMergedFile(result, "merged_result.txt");
+                            }
+                        }
+                    };
+
+                    // 開始處理第一個塊
+                    processFileChunk();
+                }
             });
 
-            // 模擬點擊文件選擇框
             input.click();
         }
 
-        // 讀取文件為純文字
-        function readFileAsText(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = (e) => resolve(e.target.result);
-                reader.onerror = reject;
-                reader.readAsText(file);
-            });
-        }
-
-        // 合併兩個文件內容
+        // 通過移除重疊來合併兩個文件
         function mergeTwoFiles(file1Lines, file2Lines) {
             const overlapIndex = findOverlap(file1Lines, file2Lines);
-
             if (overlapIndex === -1) {
-                return file1Lines.concat(file2Lines); // 無重疊，直接拼接
+                return file1Lines.concat(file2Lines);
             } else {
-                return file1Lines.concat(file2Lines.slice(overlapIndex)); // 去除重疊部分後拼接
+                return file1Lines.concat(file2Lines.slice(overlapIndex));
             }
         }
 
-        // 尋找文件的重疊行
+        // 查找兩個文件內容之間的重疊部分
         function findOverlap(file1Lines, file2Lines) {
             const maxOverlap = Math.min(file1Lines.length, file2Lines.length);
-
             for (let i = 1; i <= maxOverlap; i++) {
                 const file1Tail = file1Lines.slice(-i).join("\n").trim();
                 const file2Head = file2Lines.slice(0, i).join("\n").trim();
-
                 if (file1Tail === file2Head) {
-                    return i; // 返回重疊的行數
+                    return i;
                 }
             }
-
-            return -1; // 無重疊
+            return -1;
         }
 
-        // 觸發下載文件
+        // 合併後觸發文件下載
         function downloadMergedFile(content, filename) {
             const blob = new Blob([content], { type: 'text/plain' });
             const link = document.createElement('a');
